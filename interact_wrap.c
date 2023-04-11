@@ -9,6 +9,8 @@ static char orbit_docstring[] = "Calculate orbit in a parameterized potential gi
 static char encounter_docstring[] = "Calculate orbit of a perturber";
 static char interact_docstring[] = "Calculate reactions of a tube of stars to a perturber flyby";
 static char general_interact_docstring[] = "Calculate reactions of a tube of stars to a generalized perturber flyby";
+static char df_interact_docstring[] = "Calculate reactions of stars to a perturber undergoing dynamical friction";
+static char df_orbit_docstring[] = "Calculate orbit in a parameterized potential given the inital position and velocity, assuming the object is undergoing dynamical friction";
 static char abinit_interaction_docstring[] = "Generate a model of an interaction from scratch";
     
 /* Available functions */
@@ -17,6 +19,8 @@ static PyObject *interact3_orbit(PyObject *self, PyObject *args);
 static PyObject *interact3_encounter(PyObject *self, PyObject *args);
 static PyObject *interact3_interact(PyObject *self, PyObject *args);
 static PyObject *interact3_general_interact(PyObject *self, PyObject *args);
+static PyObject *interact3_df_interact(PyObject *self, PyObject *args);
+static PyObject *interact3_df_orbit(PyObject *self, PyObject *args);
 static PyObject *interact3_abinit_interaction(PyObject *self, PyObject *args);
 
 /* Module specification */
@@ -26,6 +30,8 @@ static PyMethodDef module_methods[] = {
 	{"encounter", interact3_encounter, METH_VARARGS, encounter_docstring},
 	{"interact", interact3_interact, METH_VARARGS, interact_docstring},
 	{"general_interact", interact3_general_interact, METH_VARARGS, general_interact_docstring},
+	{"df_interact", interact3_df_interact, METH_VARARGS, df_interact_docstring},
+	{"df_orbit", interact3_df_orbit, METH_VARARGS, df_orbit_docstring},
 	{"abinit_interaction", interact3_abinit_interaction, METH_VARARGS, abinit_interaction_docstring},
 	{NULL, NULL, 0, NULL}
 };
@@ -239,6 +245,104 @@ static PyObject *interact3_general_interact(PyObject *self, PyObject *args)
 	
 // 	printf("%e %e %e\n", x1[0], x2[0], x3[0]);
 //     printf("%e %e %e\n", v1[0], v2[0], v3[0]);
+	
+    // Store return array
+	PyObject *out = Py_BuildValue("OOOOOO", x1_array, x2_array, x3_array, v1_array, v2_array, v3_array);
+	
+	// Return positions, velocities and energy as a function of time
+	return out;
+}
+
+static PyObject *interact3_df_interact(PyObject *self, PyObject *args)
+{
+    // Parse the input tuple
+    int potential, potential_perturb;
+    double T, dt_, mi, ai;
+    PyObject *par_perturb_obj, *par_perturb_array, *x0_obj, *x0_array, *v0_obj, *v0_array, *par_pot_obj, *par_pot_array, *x1_obj, *x1_array, *x2_obj, *x2_array, *x3_obj, *x3_array, *v1_obj, *v1_array, *v2_obj, *v2_array, *v3_obj, *v3_array;
+
+    // reads in input parameters
+    if (!PyArg_ParseTuple(args, "OddOOddOiiOOOOOO", &par_perturb_obj, &mi, &ai, &x0_obj, &v0_obj, &T, &dt_, &par_pot_obj, &potential, &potential_perturb, &x1_obj, &x2_obj, &x3_obj, &v1_obj, &v2_obj, &v3_obj))
+        return NULL;
+
+    // Interpret the input parameters as numpy arrays
+    par_perturb_array = PyArray_FROM_OTF(par_perturb_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+    x0_array = PyArray_FROM_OTF(x0_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+    v0_array = PyArray_FROM_OTF(v0_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+    par_pot_array = PyArray_FROM_OTF(par_pot_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+    x1_array = PyArray_FROM_OTF(x1_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+    x2_array = PyArray_FROM_OTF(x2_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+    x3_array = PyArray_FROM_OTF(x3_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+    v1_array = PyArray_FROM_OTF(v1_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+    v2_array = PyArray_FROM_OTF(v2_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+    v3_array = PyArray_FROM_OTF(v3_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+
+    //If that didn't work, throw an exception
+    if (par_perturb_array == NULL) {
+        Py_XDECREF(par_perturb_array);
+        return NULL;
+    }
+    if (x0_array == NULL) {
+        Py_XDECREF(x0_array);
+        return NULL;
+    }
+    if (v0_array == NULL) {
+        Py_XDECREF(v0_array);
+        return NULL;
+    }
+    if (par_pot_array == NULL) {
+        Py_XDECREF(par_pot_array);
+        return NULL;
+    }
+    if (x1_array == NULL) {
+        Py_XDECREF(x1_array);
+        return NULL;
+    }
+    if (x2_array == NULL) {
+        Py_XDECREF(x2_array);
+        return NULL;
+    }
+    if (x3_array == NULL) {
+        Py_XDECREF(x3_array);
+        return NULL;
+    }
+    if (v1_array == NULL) {
+        Py_XDECREF(v1_array);
+        return NULL;
+    }
+    if (v2_array == NULL) {
+        Py_XDECREF(v2_array);
+        return NULL;
+    }
+    if (v3_array == NULL) {
+        Py_XDECREF(v3_array);
+        return NULL;
+    }
+
+    // How many stars are there?
+    int Nstar = (int)PyArray_DIM(x1_array, 0);
+
+    // Get pointers to the data as C-types
+    double *par_perturb, *x0, *v0, *par_pot, *x1, *x2, *x3, *v1, *v2, *v3;
+    par_perturb = (double*)PyArray_DATA(par_perturb_array);
+    x0 = (double*)PyArray_DATA(x0_array);
+    v0 = (double*)PyArray_DATA(v0_array);
+    par_pot = (double*)PyArray_DATA(par_pot_array);
+    x1 = (double*)PyArray_DATA(x1_array);
+    x2 = (double*)PyArray_DATA(x2_array);
+    x3 = (double*)PyArray_DATA(x3_array);
+    v1 = (double*)PyArray_DATA(v1_array);
+    v2 = (double*)PyArray_DATA(v2_array);
+    v3 = (double*)PyArray_DATA(v3_array);
+    
+	// Call the external C function to calculate the interaction
+	int err;
+    err = df_interact(par_perturb, mi, ai, x0, v0, T, dt_, par_pot, potential, potential_perturb, Nstar, x1, x2, x3, v1, v2, v3);
+    
+	// Check if error raised
+	if(err!=0) {
+		PyErr_SetString(PyExc_RuntimeError, "Error occured in the leapfrog integrator.");
+		return NULL;
+	}
 	
     // Store return array
 	PyObject *out = Py_BuildValue("OOOOOO", x1_array, x2_array, x3_array, v1_array, v2_array, v3_array);
@@ -623,6 +727,101 @@ static PyObject *interact3_orbit(PyObject *self, PyObject *args)
 	Py_XDECREF(py_v3);
 	
 	// Return positions, velocities and energy as a function of time
+	return out;
+}
+
+static PyObject *interact3_df_orbit(PyObject *self, PyObject *args)
+{
+	int N, err, potential;
+	double *x0, *v0, *par, T, dt_, direction, mi, rs, f;
+	PyObject *par_obj, *par_array, *x0_obj, *x0_array, *v0_obj, *v0_array;
+
+	// Parse the input tuple
+	if (!PyArg_ParseTuple(args, "OOOidddddd", &x0_obj, &v0_obj, &par_obj, &potential, &T, &dt_, &direction, &mi, &rs, &f))	// reads in input parameters
+		return NULL;
+    
+    // number of time steps
+    N = T / dt_ + 1;
+// 	Ne=ceil((float)N/(float)M);
+	
+	// Interpret the input parameters as numpy arrays
+	par_array = PyArray_FROM_OTF(par_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+	x0_array = PyArray_FROM_OTF(x0_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+	v0_array = PyArray_FROM_OTF(v0_obj, NPY_DOUBLE, NPY_IN_ARRAY);
+	
+	//If that didn't work, throw an exception
+	if (par_array == NULL) {
+		Py_XDECREF(par_array);
+		return NULL;
+	}
+	if (x0_array == NULL) {
+		Py_XDECREF(x0_array);
+		return NULL;
+	}
+	if (v0_array == NULL) {
+		Py_XDECREF(v0_array);
+		return NULL;
+	}
+	// How many parameters are there?
+// 	int Npar = (int)PyArray_DIM(par_array, 0);
+
+	//Get pointers to the data as C-types. */
+	par = (double*)PyArray_DATA(par_array);
+	x0 = (double*)PyArray_DATA(x0_array);
+	v0 = (double*)PyArray_DATA(v0_array);
+	
+	// Set up return array pointers
+	double *x1, *x2, *x3, *v1, *v2, *v3, *mass;
+	int nd=1;
+// 	npy_intp *dims;
+// 	dims[0] = Ne;
+	npy_intp dims[2];
+	dims[0] = N;
+	PyArrayObject *py_x1, *py_x2, *py_x3, *py_v1, *py_v2, *py_v3, *py_mass;
+	
+	// Python arrays
+	py_x1 = (PyArrayObject*) PyArray_SimpleNew(nd, dims, NPY_DOUBLE);
+	py_x2 = (PyArrayObject*) PyArray_SimpleNew(nd, dims, NPY_DOUBLE);
+	py_x3 = (PyArrayObject*) PyArray_SimpleNew(nd, dims, NPY_DOUBLE);
+	py_v1 = (PyArrayObject*) PyArray_SimpleNew(nd, dims, NPY_DOUBLE);
+	py_v2 = (PyArrayObject*) PyArray_SimpleNew(nd, dims, NPY_DOUBLE);
+	py_v3 = (PyArrayObject*) PyArray_SimpleNew(nd, dims, NPY_DOUBLE);
+	py_mass = (PyArrayObject*) PyArray_SimpleNew(nd, dims, NPY_DOUBLE);
+	
+	// Pointers to C arrays
+	x1 = pyvector_to_Carrayptrs(py_x1);
+	x2 = pyvector_to_Carrayptrs(py_x2);
+	x3 = pyvector_to_Carrayptrs(py_x3);
+	v1 = pyvector_to_Carrayptrs(py_v1);
+	v2 = pyvector_to_Carrayptrs(py_v2);
+	v3 = pyvector_to_Carrayptrs(py_v3);
+	mass = pyvector_to_Carrayptrs(py_mass);
+
+	// Call the external C function to calculate the geostationary orbit.
+// 	printf("before %e\n", x1[0]);
+	err = df_orbit(x0, v0, x1, x2, x3, v1, v2, v3, mass, par, potential, N, dt_, direction, mi, rs, f);
+// 	printf("after %e\n", x1[0]);
+
+	// Check if error raised
+	if(err!=0) {
+		PyErr_SetString(PyExc_RuntimeError, "Error occured in the leapfrog integrator.");
+		return NULL;
+	}
+	
+	// Store return array
+	PyObject *out = Py_BuildValue("OOOOOOO", py_x1, py_x2, py_x3, py_v1, py_v2, py_v3, py_mass);
+	
+	// Clean up
+	Py_XDECREF(par_array);
+	Py_XDECREF(py_x1);
+	Py_XDECREF(py_x2);
+	Py_XDECREF(py_x3);
+	Py_XDECREF(py_v1);
+	Py_XDECREF(py_v2);
+	Py_XDECREF(py_v3);
+	Py_XDECREF(py_mass);
+	
+	// Return positions and velocities as a function of time
 	return out;
 }
 

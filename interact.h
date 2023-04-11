@@ -9,24 +9,39 @@ int abinit_interaction(double *xend, double *vend, double dt_, double dt_fine, d
 double energy(double *x, double *v, double vh);
 
 int general_interact(double *par_perturb, double *x0, double *v0, double Tenc, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3);
+
+int df_interact(double *par_perturb, double mi, double ai, double *x0, double *v0, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3);
+
 int interact(double *par, double B, double phi, double V, double theta, double Tenc, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3);
+
 int encounter(double M, double B, double phi, double V, double theta, double T, double dt_, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3);
 
 
 int stream(double *x0, double *v0, double *xm1, double *xm2, double *xm3, double *xp1, double *xp2, double *xp3, double *vm1, double *vm2, double *vm3, double *vp1, double *vp2, double *vp3, double *par, double *offset, int potential, int integrator, int N, int M, double mcli, double mclf, double rcl, double dt_);
 
 int orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, double *par, int potential, int integrator, int N, double dt_, double direction);
+
+int df_orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, double *mass, double *par, int potential, int N, double dt_, double direction, double mi, double rs, double f);
+
+double mass_decrement(double *x, double *apar_pot, double mi, double m, double rs, double f);
+
 int back(double *x0, double *v0, double *xf, double *vf, double *par, double hp, int potential, int integrator, int N);
 
 void dostep(double *x, double *v, double *par, int potential, double deltat, double sign);
 void dostep1(double *x, double *v, double *par, int potential, double deltat, double sign);
+void dostep_df(double *x, double *v, double *par, int potential, double deltat, double sign, double *par_den, double M);
+void dostep1_df(double *x, double *v, double *par, int potential, double deltat, double sign, double *par_den, double M);
 
 void dostep_stream(double *xc, double *x, double *v, double *par, int potential, double Mcl, double deltat, double sign);
 void dostep_rk(double *x, double *v, double *par, int potential, double deltat, double sign);
 
 void force(double *x, double *a, double *par, int potential);
 void force_plummer(double *x, double *a, double Mcl);
+double density(double *x, int potential, double *par);
+
 void initpar(int potential, double *par, double *apar);
+void initpar_density(int potential, double *par, double *apar);
+
 double jacobi(double *x, double *v, double *par, int potential, double Mcl);
 
 double len(double *x);
@@ -41,13 +56,13 @@ double gasdev(long *idum);
 extern double Mcli, Mclf, Rcl, dt;
 
 // Physical constants
-#define G 6.67e-11		// Gravitational constant
+#define G 6.6743e-11		// Gravitational constant
 // #define G 4.498502151575286e-12		// Gravitational constant in kpc^3 Msun^-1 Myr^-2
 #define yr 3.15569e7		// yr in seconds
 #define kpc 3.08567758e19	// kpc in m
 #define kms 1e3			// km/s in m/s
 #define Msun 1.99e30		// Mass of the Sun
-#define pi 3.14159265359
+#define pi 3.141592653589793
 
 // NR random generator definitions
 #define Nnr 90

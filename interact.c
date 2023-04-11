@@ -586,6 +586,163 @@ int general_interact(double *par_perturb, double *x0, double *v0, double Tenc, d
     return 0;
 }
 
+int df_interact(double *par_perturb, double mi, double ai, double *x0, double *v0, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3)
+{
+    // Interaction of massive object, experiencing dynamical friction, and massless tracer particles
+    // object is initialized at the present and rewinded back in time, accounting for dynamical friction
+    // particles are initialized in the past and only integrated forward in the joint galaxy + perturber potential
+    
+    int i, j, k, Ntot, Napar_perturb, Napar_pot, potential_combined, Napar_combined;
+    double x[3], v[3], xp[3], vp[3], direction, m, a, dm, da;
+    
+    // setup time controls
+    Ntot = T / dt_ + 1;
+    dt = dt_;
+    
+    // setup underlying potential
+    Napar_pot = par_perpotential[potential];
+    double apar_pot[Napar_pot];
+    initpar(potential, par_pot, apar_pot);
+    double apar_den[Napar_pot];
+    initpar_density(potential, par_pot, apar_den);
+    
+    // setup evolving perturber potential
+    dm = (mi - par_perturb[0])/(double)Ntot;
+    da = (ai - par_perturb[1])/(double)Ntot;
+    m = par_perturb[0];
+    a = par_perturb[1];
+    Napar_perturb = par_perpotential[potential_perturb];
+    double apar_perturb[Napar_perturb];
+    
+    // setup combined potential of the galaxy and the perturber
+    potential_combined = potential + potential_perturb;
+    Napar_combined = par_perpotential[potential_combined];
+    double apar_combined[Napar_combined];
+    
+    for(i=0;i<Napar_perturb;i++)
+        apar_combined[i] = apar_perturb[i];
+    
+    for(i=0;i<Napar_pot;i++)
+        apar_combined[i+Napar_perturb] = apar_pot[i];
+    
+//     printf("%e %e %e\n", x0[0], x0[1], x0[2]);
+//     printf("%e %e %e\n", v0[0], v0[1], v0[2]);
+//     printf("%e\n", m);
+    //////////////////////////////////
+    // Find initial perturber position
+    direction = -1.;
+    
+    // initial leapfrog step
+    dostep1_df(x0, v0, apar_pot, potential, dt, direction, apar_den, m);
+
+    // leapfrog steps
+    for(i=1;i<Ntot;i++){
+        m = m - direction*dm;
+        a = a - direction*da;
+        par_perturb[0] = m;
+        par_perturb[1] = a;
+        initpar(potential_perturb, par_perturb, apar_perturb);
+        
+        dostep_df(x0, v0, apar_pot, potential, dt, direction, apar_den, m);
+    }
+    
+//     printf("%e %e %e\n", mi, par_perturb[0], m);
+    
+    // final leapfrog step
+    dostep1_df(x0, v0, apar_pot, potential, dt, direction, apar_den, m);
+    
+    ////////////////
+    // Perturb stars
+    direction = 1.;
+    
+    // Reinitiate the perturber
+    t2t(x0, xp);
+    t2t(v0, vp);
+    
+    ////////////////////////
+    // Initial leapfrog step
+    for(k=0;k<3;k++)
+        par_perturb[k+Napar_perturb-3] = xp[k];
+    initpar(potential_perturb, par_perturb, apar_perturb);
+    for(i=0;i<Napar_perturb;i++)
+        apar_combined[i] = apar_perturb[i];
+    
+    // update stars
+    for(i=0;i<Nstar;i++){
+        // choose a star
+        n2t(x, x1, x2, x3, i);
+        n2t(v, v1, v2, v3, i);
+        
+        dostep1(x, v, apar_combined, potential_combined, dt, direction);
+        
+        t2n(x, x1, x2, x3, i);
+        t2n(v, v1, v2, v3, i);
+    }
+    
+    // update perturber
+    dostep1_df(xp, vp, apar_pot, potential, dt, direction, apar_den, m);
+    
+    /////////////////
+    // Leapfrog steps
+    for(j=1;j<Ntot;j++){
+        // update perturber position
+        for(k=0;k<3;k++)
+            par_perturb[k+Napar_perturb-3] = xp[k];
+        // update perturber mass and size
+        m = m - direction*dm;
+        a = a - direction*da;
+        par_perturb[0] = m;
+        par_perturb[1] = a;
+        // update perturber and overall potential
+        initpar(potential_perturb, par_perturb, apar_perturb);
+        for(i=0;i<Napar_perturb;i++)
+            apar_combined[i] = apar_perturb[i];
+        
+        // update stars
+        for(i=0;i<Nstar;i++){
+            // choose a star
+            n2t(x, x1, x2, x3, i);
+            n2t(v, v1, v2, v3, i);
+            
+            dostep(x, v, apar_combined, potential_combined, dt, direction);
+            
+            t2n(x, x1, x2, x3, i);
+            t2n(v, v1, v2, v3, i);
+        }
+
+        // update perturber
+        dostep_df(xp, vp, apar_pot, potential, dt, direction, apar_den, m);
+    }
+    
+    //////////////////////
+    // Final leapfrog step
+    for(k=0;k<3;k++)
+        par_perturb[k+Napar_perturb-3] = xp[k];
+    initpar(potential_perturb, par_perturb, apar_perturb);
+    for(i=0;i<Napar_perturb;i++)
+        apar_combined[i] = apar_perturb[i];
+    
+    // update stars
+    for(i=0;i<Nstar;i++){
+        // choose a star
+        n2t(x, x1, x2, x3, i);
+        n2t(v, v1, v2, v3, i);
+        
+        dostep1(x, v, apar_combined, potential_combined, dt, direction);
+        
+        t2n(x, x1, x2, x3, i);
+        t2n(v, v1, v2, v3, i);
+    }
+    
+//     printf("%e %e %e\n", xp[0], xp[1], xp[2]);
+//     printf("%e %e %e\n", vp[0], vp[1], vp[2]);
+//     printf("%e\n", m);
+    // update perturber
+    dostep1_df(xp, vp, apar_pot, potential, dt, direction, apar_den, m);
+    
+    return 0;
+}
+
 int interact(double *par_perturb, double B, double phi, double V, double theta, double Tenc, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3)
 {
     int i, j, k, Nenc, Ntot, Napar_perturb, Napar_pot, potential_combined, Napar_combined;
@@ -1277,6 +1434,86 @@ int orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double *v1
 	return 0;
 }
 
+int df_orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, double *mass, double *par, int potential, int N, double dt_, double direction, double mi, double rs, double f)
+{
+    int i, Napar;
+    double x[3], v[3], m, dm;
+    
+    // setup time controls
+    dt = dt_;
+    
+    // setup underlying potential
+    Napar = par_perpotential[potential];
+    double apar_pot[Napar];
+    initpar(potential, par, apar_pot);
+    double apar_den[Napar];
+    initpar_density(potential, par, apar_den);
+
+    // Initial position and velocities
+    t2t(x0, x);
+    t2t(v0, v);
+
+    // Time step
+    dt = dt_;
+    
+    ///////////////////////////////////////
+    // Orbit integration (leap frog)
+    
+    // initial leapfrog step
+    m = mi;
+    dostep1_df(x, v, apar_pot, potential, dt, direction, apar_den, m);
+
+    // Record
+    t2n(x, x1, x2, x3, 0);
+    t2n(v, v1, v2, v3, 0);
+    mass[0] = m;
+    
+    // leapfrog steps
+    for(i=1;i<N;i++){
+        // mass loss
+        dm = mass_decrement(x, apar_pot, mi, m, rs, f);
+        m = m - direction*dm;
+
+        dostep_df(x, v, apar_pot, potential, dt, direction, apar_den, m);
+        
+        // Record
+        t2n(x, x1, x2, x3, i);
+        t2n(v, v1, v2, v3, i);
+        mass[i] = m;
+    }
+    
+    // final leapfrog step
+    dostep1_df(x, v, apar_pot, potential, dt, direction, apar_den, m);
+    
+    // Record
+    t2n(x, x1, x2, x3, N-1);
+    t2n(v, v1, v2, v3, N-1);
+    mass[N-1] = m;
+    
+    return 0;
+}
+
+double mass_decrement(double *x, double *apar_pot, double mi, double m, double rs, double f)
+{
+    double aux, aux2, rg, rt, menc, dm;
+    
+    // find mass decrement (radius-dependent)
+    rg = sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+    
+    // enclosed mass
+    aux = rg/apar_pot[1];
+    aux2 = rg/apar_pot[10];
+    menc = (apar_pot[0]*aux*aux/((1. + aux)*(1. + aux)) + apar_pot[2] + apar_pot[5]*(log(1+aux2) - aux2/(1. + aux2)))/G;
+    
+    // tidal radius
+    rt = rg*pow(m/menc, 1/3.);
+    
+    // mass-loss rate
+    dm = f*mi*(rs/rt);
+    
+    return dm;
+}
+
 void dostep(double *x, double *v, double *par, int potential, double deltat, double sign)
 {	// Evolve point particle from x0, v0, for a time deltat in a given potential
 	// evolve forward for sign=1, backwards for sign=-1
@@ -1296,11 +1533,7 @@ void dostep(double *x, double *v, double *par, int potential, double deltat, dou
 
         for(j=0;j<3;j++){
 			vt[j]=v[j]+dts*at[j];
-//             if(potential==1)
-//                 printf(" %e %e ", at[j], vt[j]);
         }
-//         if(potential==1)
-//             printf("\n");
 		
 		// Update input vectors to current values
 		for(j=0;j<3;j++){
@@ -1322,6 +1555,86 @@ void dostep1(double *x, double *v, double *par, int potential, double deltat, do
 	v[0]=v[0]+0.5*dts*a[0];
 	v[1]=v[1]+0.5*dts*a[1];
 	v[2]=v[2]+0.5*dts*a[2];
+}
+
+void dostep_df(double *x, double *v, double *par, int potential, double deltat, double sign, double *par_den, double M)
+{   // Evolve point particle from x0, v0, for a time deltat in a given potential, undergoing dynamical friction
+    // evolve forward for sign=1, backwards for sign=-1
+    // return final positions and velocities in x, v
+
+    int i, j, Nstep;
+    double xt[3], vt[3], at[3], adf[3], dts;
+
+    dts = sign*dt;                // Time step with a sign
+    Nstep = (int) (deltat/dt);    // Number of steps to evolve
+
+    for(i=0;i<Nstep;i++){
+        // Forward the particle using the leapfrog integrator
+        for(j=0;j<3;j++)
+            xt[j] = x[j] + dts*v[j];
+        force(xt, at, par, potential);
+        
+        // dynamical friction
+        // assumes lnL=3, sigma=120km/s
+        double vsig, vtot, aux, rho;
+        
+        vtot = sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+        vsig = vtot/(sqrt(2)*1.2e5);
+        rho = density(x, potential, par_den);
+        
+        aux = -12*pi*G*G*M * rho * (erf(vsig) - 2/sqrt(pi)*vsig*exp(-(vsig*vsig))) / (vtot*vtot*vtot)*1e0;
+        
+        adf[0] = aux*v[0];
+        adf[1] = aux*v[1];
+        adf[2] = aux*v[2];
+        
+//         printf("density %e\n", rho);
+//         printf("%e %e %e\n", at[0], adf[0], M/Msun);
+
+        for(j=0;j<3;j++){
+            vt[j] = v[j] + dts*(at[j]+adf[j]);
+        }
+        
+        // Update input vectors to current values
+        for(j=0;j<3;j++){
+            x[j] = xt[j];
+            v[j] = vt[j];
+        }
+    }
+
+}
+
+void dostep1_df(double *x, double *v, double *par, int potential, double deltat, double sign, double *par_den, double M)
+{   // Make first step to set up the leapfrog integration with gravitational acceleration and dynamical friction
+
+    int j;
+    double a[3], adf[3], dts;
+
+    dts = sign*dt;
+    force(x, a, par, potential);
+
+    // dynamical friction
+    // assumes lnL=3, sigma=120km/s
+    double vsig, vtot, aux, rho;
+    
+    vtot = sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+    vsig = vtot/(sqrt(2)*1.2e5);
+    rho = density(x, potential, par_den);
+//     printf("density %e\n", rho);
+    
+    aux = -12*pi*G*G*M * rho * (erf(vsig) - 2/sqrt(pi)*vsig*exp(-(vsig*vsig))) / (vtot*vtot*vtot)*1e0;
+    
+    for(j=0;j<3;j++){
+        adf[j] = aux*v[j];
+        v[j] = v[j] + 0.5*dts*(a[j]+adf[j]);
+    }
+//     adf[0] = aux*v[0];
+//     adf[1] = aux*v[1];
+//     adf[2] = aux*v[2];
+//     
+//     v[0] = v[0] + 0.5*dts*(a[0]+adf[0]);
+//     v[1] = v[1] + 0.5*dts*(a[1]+adf[1]);
+//     v[2] = v[2] + 0.5*dts*(a[2]+adf[2]);
 }
 
 void dostep_rk(double *x, double *v, double *par, int potential, double deltat, double sign)
@@ -1818,6 +2131,38 @@ void force_plummer(double *x, double *a, double Mcl)
 		a[i]=G*Mcl*x[i]/raux;
 }
 
+double density(double *x, int potential, double *par)
+{   // Calculate density of a potential model at position x
+    
+    double rho, r, aux;
+    rho = 0.;
+    
+    if (potential==6){
+        // Composite Galactic potential featuring a disk, bulge, and flattened NFW halo (from Johnston/Law/Majewski/Helmi)
+        // par = [Mb/(2*pi*ab^3), ab, Md*bd^2/(4*pi), ad, bd^2, Mh/(4*pi*Rh^3), c1, c2, c3, c4, Rh]
+
+        //Hernquist bulge
+        r = sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+        aux = r/par[1];
+        
+        rho += par[0] / (aux * (1 + aux)*(1 + aux)*(1 + aux));
+
+        //Miyamoto-Nagai disk
+        r = x[0]*x[0] + x[1]*x[1];
+        aux = sqrt(x[2]*x[2] + par[4]);
+        
+        rho += par[2] * (par[3]*r + (3*aux + par[3])*(aux + par[3])*(aux + par[3])) / (pow(r + (aux + par[3])*(aux + par[3]), 2.5) * aux*aux*aux);
+
+        //Triaxial NFW Halo
+        r = sqrt(par[6]*x[0]*x[0] + par[7]*x[1]*x[1] + par[8]*x[0]*x[1] + par[9]*x[2]*x[2]);
+        aux = r/par[10];
+        
+        rho += par[5] / (aux * (1 + aux)*(1 + aux));
+    }
+    
+    return rho;
+}
+
 void initpar(int potential, double *par, double *apar)
 {
 	if(potential==1){
@@ -2064,6 +2409,38 @@ void initpar(int potential, double *par, double *apar)
         apar[23] = f*par[23];
         
         apar[22] = 0.25*sqrt(7./pi)*par[22];
+    }
+}
+
+void initpar_density(int potential, double *par, double *apar)
+{   //Initialize parameters relevant for calculating density for a given potential model
+    
+    if (potential==6) {
+        // Composite Galactic potential featuring a disk, bulge, and triaxial NFW halo (from Johnston/Law/Majewski/Helmi)
+        // par = [Mb, ab, Md, ad, bd, Vh, Rh, phi, q_1, q_2, q_z]
+        // apar = [Mb/(2*pi*ab^3), ab, Md*bd^2/(4*pi), ad, bd^2, Mh/(4*pi*Rh^3), c1, c2, c3, c4, Rh]
+
+        double cosphi, sinphi;
+
+        // Hernquist bulge
+        apar[0] = par[0]/(2*pi*par[1]*par[1]*par[1]);
+        apar[1] = par[1];
+        
+        // Miyamoto-Nagai disk
+        apar[2] = par[2]*par[4]*par[4]/(4*pi);
+        apar[3] = par[3];
+        apar[4] = par[4]*par[4];
+
+        // NFW halo
+        cosphi = cos(par[7]);
+        sinphi = sin(par[7]);
+
+        apar[5] = par[5]*par[5]/(4*pi*G*par[6]*par[6]);
+        apar[6] = cosphi*cosphi/(par[8]*par[8]) + sinphi*sinphi/(par[9]*par[9]);
+        apar[7] = cosphi*cosphi/(par[9]*par[9]) + sinphi*sinphi/(par[8]*par[8]);
+        apar[8] = 2*sinphi*cosphi*(1/(par[8]*par[8]) - 1/(par[9]*par[9]));
+        apar[9] = 1/(par[10]*par[10]);
+        apar[10] = par[6];
     }
 }
 

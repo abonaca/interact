@@ -1,7 +1,7 @@
 from distutils.core import setup, Extension
-import numpy.distutils.misc_util
+import numpy as np
 
 c_ext = Extension("interact3", ["interact_wrap.c", "interact.c", "nr_rand.c", "utility.c"])
 
 setup(ext_modules = [c_ext], 
-      include_dirs = numpy.distutils.misc_util.get_numpy_include_dirs())
+      include_dirs = np.get_include())
