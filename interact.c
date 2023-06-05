@@ -586,14 +586,14 @@ int general_interact(double *par_perturb, double *x0, double *v0, double Tenc, d
     return 0;
 }
 
-int df_interact(double *par_perturb, double mi, double ai, double *x0, double *v0, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3)
+int df_interact(double *par_perturb, double mi, double f, double ai, double *x0, double *v0, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3)
 {
     // Interaction of massive object, experiencing dynamical friction, and massless tracer particles
     // object is initialized at the present and rewinded back in time, accounting for dynamical friction
     // particles are initialized in the past and only integrated forward in the joint galaxy + perturber potential
     
     int i, j, k, Ntot, Napar_perturb, Napar_pot, potential_combined, Napar_combined;
-    double x[3], v[3], xp[3], vp[3], direction, m, a, dm, da;
+    double x[3], v[3], xp[3], vp[3], direction, m, a, dm, da, mf, af;
     
     // setup time controls
     Ntot = T / dt_ + 1;
@@ -611,6 +611,8 @@ int df_interact(double *par_perturb, double mi, double ai, double *x0, double *v
     da = (ai - par_perturb[1])/(double)Ntot;
     m = par_perturb[0];
     a = par_perturb[1];
+    mf = par_perturb[0];
+    af = par_perturb[1];
     Napar_perturb = par_perpotential[potential_perturb];
     double apar_perturb[Napar_perturb];
     
@@ -637,6 +639,7 @@ int df_interact(double *par_perturb, double mi, double ai, double *x0, double *v
 
     // leapfrog steps
     for(i=1;i<Ntot;i++){
+        dm = mass_decrement(x0, apar_pot, mf, m, af, f);
         m = m - direction*dm;
         a = a - direction*da;
         par_perturb[0] = m;
@@ -689,6 +692,7 @@ int df_interact(double *par_perturb, double mi, double ai, double *x0, double *v
         for(k=0;k<3;k++)
             par_perturb[k+Napar_perturb-3] = xp[k];
         // update perturber mass and size
+        dm = mass_decrement(xp, apar_pot, mf, m, af, f);
         m = m - direction*dm;
         a = a - direction*da;
         par_perturb[0] = m;
@@ -1434,7 +1438,7 @@ int orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double *v1
 	return 0;
 }
 
-int df_orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, double *mass, double *par, int potential, int N, double dt_, double direction, double mi, double rs, double f)
+int df_orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, double *mass, double *par, int potential, int N, double dt_, double direction, double mf, double rs, double f)
 {
     int i, Napar;
     double x[3], v[3], m, dm;
@@ -1460,7 +1464,7 @@ int df_orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double 
     // Orbit integration (leap frog)
     
     // initial leapfrog step
-    m = mi;
+    m = mf;
     dostep1_df(x, v, apar_pot, potential, dt, direction, apar_den, m);
 
     // Record
@@ -1471,7 +1475,7 @@ int df_orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double 
     // leapfrog steps
     for(i=1;i<N;i++){
         // mass loss
-        dm = mass_decrement(x, apar_pot, mi, m, rs, f);
+        dm = mass_decrement(x, apar_pot, mf, m, rs, f);
         m = m - direction*dm;
 
         dostep_df(x, v, apar_pot, potential, dt, direction, apar_den, m);
@@ -1509,7 +1513,10 @@ double mass_decrement(double *x, double *apar_pot, double mi, double m, double r
     rt = rg*pow(m/menc, 1/3.);
     
     // mass-loss rate
-    dm = f*mi*(rs/rt);
+//     dm = f*mi*(rs/rt);
+    dm = f*pow(m/(1e8*Msun),0.2)*1e7*Msun;
+//     dm = f*1e9*Msun*kpc/rt*kpc/rt;
+//     dm = f*1e8*Msun*pow(kpc/rt, 2.5);
     
     return dm;
 }

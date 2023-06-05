@@ -10,7 +10,7 @@ double energy(double *x, double *v, double vh);
 
 int general_interact(double *par_perturb, double *x0, double *v0, double Tenc, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3);
 
-int df_interact(double *par_perturb, double mi, double ai, double *x0, double *v0, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3);
+int df_interact(double *par_perturb, double mi, double f, double ai, double *x0, double *v0, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3);
 
 int interact(double *par, double B, double phi, double V, double theta, double Tenc, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3);
 
@@ -21,7 +21,7 @@ int stream(double *x0, double *v0, double *xm1, double *xm2, double *xm3, double
 
 int orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, double *par, int potential, int integrator, int N, double dt_, double direction);
 
-int df_orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, double *mass, double *par, int potential, int N, double dt_, double direction, double mi, double rs, double f);
+int df_orbit(double *x0, double *v0, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, double *mass, double *par, int potential, int N, double dt_, double direction, double mf, double rs, double f);
 
 double mass_decrement(double *x, double *apar_pot, double mi, double m, double rs, double f);
 
