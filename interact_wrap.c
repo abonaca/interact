@@ -155,10 +155,11 @@ static PyObject *interact3_general_interact(PyObject *self, PyObject *args)
     // Parse the input tuple
     int potential, potential_perturb;
     double Tenc, T, dt_;
+    char* fname;
     PyObject *par_perturb_obj, *par_perturb_array, *x0_obj, *x0_array, *v0_obj, *v0_array, *par_pot_obj, *par_pot_array, *x1_obj, *x1_array, *x2_obj, *x2_array, *x3_obj, *x3_array, *v1_obj, *v1_array, *v2_obj, *v2_array, *v3_obj, *v3_array;
 
     // reads in input parameters
-    if (!PyArg_ParseTuple(args, "OOOdddOiiOOOOOO", &par_perturb_obj, &x0_obj, &v0_obj, &Tenc, &T, &dt_, &par_pot_obj, &potential, &potential_perturb, &x1_obj, &x2_obj, &x3_obj, &v1_obj, &v2_obj, &v3_obj))
+    if (!PyArg_ParseTuple(args, "OOOdddOiiOOOOOOs", &par_perturb_obj, &x0_obj, &v0_obj, &Tenc, &T, &dt_, &par_pot_obj, &potential, &potential_perturb, &x1_obj, &x2_obj, &x3_obj, &v1_obj, &v2_obj, &v3_obj, &fname))
         return NULL;
 
     // Interpret the input parameters as numpy arrays
@@ -220,6 +221,7 @@ static PyObject *interact3_general_interact(PyObject *self, PyObject *args)
 
     // Get pointers to the data as C-types
     double *par_perturb, *x0, *v0, *par_pot, *x1, *x2, *x3, *v1, *v2, *v3;
+    
     par_perturb = (double*)PyArray_DATA(par_perturb_array);
     x0 = (double*)PyArray_DATA(x0_array);
     v0 = (double*)PyArray_DATA(v0_array);
@@ -235,7 +237,7 @@ static PyObject *interact3_general_interact(PyObject *self, PyObject *args)
 //     printf("%e %e %e\n", v1[0], v2[0], v3[0]);
 	// Call the external C function to calculate the interaction
 	int err; 
-    err = general_interact(par_perturb, x0, v0, Tenc, T, dt_, par_pot, potential, potential_perturb, Nstar, x1, x2, x3, v1, v2, v3);
+    err = general_interact(par_perturb, x0, v0, Tenc, T, dt_, par_pot, potential, potential_perturb, Nstar, x1, x2, x3, v1, v2, v3, fname);
     
 	// Check if error raised
 	if(err!=0) {
@@ -644,12 +646,15 @@ static PyObject *interact3_stream(PyObject *self, PyObject *args)
 static PyObject *interact3_orbit(PyObject *self, PyObject *args)
 {
 	int N, err, potential, integrator;
-	double *x0, *v0, *par, dt_, direction;
+	double *x0, *v0, *par, T, dt_, direction;
 	PyObject *par_obj, *par_array, *x0_obj, *x0_array, *v0_obj, *v0_array;
 
 	// Parse the input tuple
-	if (!PyArg_ParseTuple(args, "OOOiiidd", &x0_obj, &v0_obj, &par_obj, &potential, &integrator, &N, &dt_, &direction))	// reads in input parameters
+	if (!PyArg_ParseTuple(args, "OOOiiddd", &x0_obj, &v0_obj, &par_obj, &potential, &integrator, &T, &dt_, &direction))	// reads in input parameters
 		return NULL;
+    
+    // number of time steps
+    N = T / dt_ + 1;
 // 	Ne=ceil((float)N/(float)M);
 	
 	// Interpret the input parameters as numpy arrays

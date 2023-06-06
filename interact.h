@@ -3,12 +3,15 @@
 #include <math.h>
 #include <string.h>
 #include <unistd.h>
+#include <hdf5.h>
+#include <hdf5_hl.h>
+#include <assert.h>
 
 int abinit_interaction(double *xend, double *vend, double dt_, double dt_fine, double T, double Tenc, double Tstream, double Tgap, int Nstream, double *par_pot, int potential, double *par_perturb, int potential_perturb, double bx, double by, double vx, double vy, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, double *de);
 
 double energy(double *x, double *v, double vh);
 
-int general_interact(double *par_perturb, double *x0, double *v0, double Tenc, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3);
+int general_interact(double *par_perturb, double *x0, double *v0, double Tenc, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, char *fname);
 
 int df_interact(double *par_perturb, double mi, double f, double ai, double *x0, double *v0, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3);
 
