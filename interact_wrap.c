@@ -153,13 +153,13 @@ static PyObject *interact3_abinit_interaction(PyObject *self, PyObject *args)
 static PyObject *interact3_general_interact(PyObject *self, PyObject *args)
 {
     // Parse the input tuple
-    int potential, potential_perturb;
+    int potential, potential_perturb, Nout;
     double Tenc, T, dt_;
     char* fname;
     PyObject *par_perturb_obj, *par_perturb_array, *x0_obj, *x0_array, *v0_obj, *v0_array, *par_pot_obj, *par_pot_array, *x1_obj, *x1_array, *x2_obj, *x2_array, *x3_obj, *x3_array, *v1_obj, *v1_array, *v2_obj, *v2_array, *v3_obj, *v3_array;
 
     // reads in input parameters
-    if (!PyArg_ParseTuple(args, "OOOdddOiiOOOOOOs", &par_perturb_obj, &x0_obj, &v0_obj, &Tenc, &T, &dt_, &par_pot_obj, &potential, &potential_perturb, &x1_obj, &x2_obj, &x3_obj, &v1_obj, &v2_obj, &v3_obj, &fname))
+    if (!PyArg_ParseTuple(args, "OOOdddOiiOOOOOOsi", &par_perturb_obj, &x0_obj, &v0_obj, &Tenc, &T, &dt_, &par_pot_obj, &potential, &potential_perturb, &x1_obj, &x2_obj, &x3_obj, &v1_obj, &v2_obj, &v3_obj, &fname, &Nout))
         return NULL;
 
     // Interpret the input parameters as numpy arrays
@@ -237,7 +237,7 @@ static PyObject *interact3_general_interact(PyObject *self, PyObject *args)
 //     printf("%e %e %e\n", v1[0], v2[0], v3[0]);
 	// Call the external C function to calculate the interaction
 	int err; 
-    err = general_interact(par_perturb, x0, v0, Tenc, T, dt_, par_pot, potential, potential_perturb, Nstar, x1, x2, x3, v1, v2, v3, fname);
+    err = general_interact(par_perturb, x0, v0, Tenc, T, dt_, par_pot, potential, potential_perturb, Nstar, x1, x2, x3, v1, v2, v3, fname, Nout);
     
 	// Check if error raised
 	if(err!=0) {
@@ -258,12 +258,13 @@ static PyObject *interact3_general_interact(PyObject *self, PyObject *args)
 static PyObject *interact3_df_interact(PyObject *self, PyObject *args)
 {
     // Parse the input tuple
-    int potential, potential_perturb;
+    int potential, potential_perturb, Nout;
     double T, dt_, mi, ai, f;
+    char *fname;
     PyObject *par_perturb_obj, *par_perturb_array, *x0_obj, *x0_array, *v0_obj, *v0_array, *par_pot_obj, *par_pot_array, *x1_obj, *x1_array, *x2_obj, *x2_array, *x3_obj, *x3_array, *v1_obj, *v1_array, *v2_obj, *v2_array, *v3_obj, *v3_array;
 
     // reads in input parameters
-    if (!PyArg_ParseTuple(args, "OdddOOddOiiOOOOOO", &par_perturb_obj, &mi, &f, &ai, &x0_obj, &v0_obj, &T, &dt_, &par_pot_obj, &potential, &potential_perturb, &x1_obj, &x2_obj, &x3_obj, &v1_obj, &v2_obj, &v3_obj))
+    if (!PyArg_ParseTuple(args, "OdddOOddOiiOOOOOOsi", &par_perturb_obj, &mi, &f, &ai, &x0_obj, &v0_obj, &T, &dt_, &par_pot_obj, &potential, &potential_perturb, &x1_obj, &x2_obj, &x3_obj, &v1_obj, &v2_obj, &v3_obj, &fname, &Nout))
         return NULL;
 
     // Interpret the input parameters as numpy arrays
@@ -338,7 +339,7 @@ static PyObject *interact3_df_interact(PyObject *self, PyObject *args)
     
 	// Call the external C function to calculate the interaction
 	int err;
-    err = df_interact(par_perturb, mi, f, ai, x0, v0, T, dt_, par_pot, potential, potential_perturb, Nstar, x1, x2, x3, v1, v2, v3);
+    err = df_interact(par_perturb, mi, f, ai, x0, v0, T, dt_, par_pot, potential, potential_perturb, Nstar, x1, x2, x3, v1, v2, v3, fname, Nout);
     
 	// Check if error raised
 	if(err!=0) {

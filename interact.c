@@ -336,27 +336,31 @@ int abinit_interaction(double *xend, double *vend, double dt_, double dt_fine, d
     return 0;
 }
 
-int general_interact(double *par_perturb, double *x0, double *v0, double Tenc, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, char *fname)
+int general_interact(double *par_perturb, double *x0, double *v0, double Tenc, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, char *fname, int Nout)
 {
     int i, j, k, Nenc, Ntot, Napar_perturb, Napar_pot, potential_combined, Napar_combined;
     double x[3], v[3], xp[3], vp[3], direction;
     
-//     printf("%s\n", fname);
+    // remove an existing hdf5 file
+    int ret = 0;
+    if (access(fname, F_OK) == 0 && Nout>0) {
+        // delete file if it already exists
+        ret = remove(fname);
+        if (ret!=0) {
+            printf("Could not remove the existing hdf5 file\n");
+            return -1;
+        }
+    }
+    
+    if (Nout<=0) {
+        fname = "test.hdf5";
+    }
+    
     // create an hdf5 file
     hid_t file_id;
     hsize_t dims[1] = {Nstar};
     herr_t status;
     file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-//     printf("file created\n");
-    
-    hid_t group_id, dataspace, dataset;
-    
-//     hid_t group_id = H5Gcreate(file_id, "/snapshots", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-//     printf("group created\n");
-//     H5Gclose(group_id);
-//     printf("group closed\n");
-    
-//     FILE *fp = fopen("interaction.bin", "wb");
     
     // setup underlying potential
     Napar_pot = par_perpotential[potential];
@@ -472,10 +476,6 @@ int general_interact(double *par_perturb, double *x0, double *v0, double Tenc, d
             t2n(x, x1, x2, x3, i);
             t2n(v, v1, v2, v3, i);
             
-//             if (j>Nenc && j%1000==0){
-//                 fprintf(fp, "%d %d %f %f %f %f %f %f\n", j, i, x1[i], x2[i], x3[i], v1[i], v2[i], v3[i]);
-//                 fprintf(fp, "%d %d %f %f %f %f %f %f\n", j, i, x[0], x[1], x[2], v[0], v[1], v[2]);
-//             }
         }
 //         printf("%d %e %e\n", j, x[0], x[1]);
 
@@ -563,52 +563,12 @@ int general_interact(double *par_perturb, double *x0, double *v0, double Tenc, d
 //         printf("%d %e %e\n", j, x[0], x[1]);
 
         // write to file
-        if (j>Nenc && j%200==0){
+        if (j>Nenc && j%Nout==0 && Nout>0){
             // create a group for each snapshot
-//             printf("writing snapshot\n");
             char group_name[12];
             sprintf(group_name, "/snap_%05d", j);
-//             printf("%d %s\n", j, group_name);
-
-            group_id = H5Gcreate(file_id, group_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-//             printf("group created\n");
-
-            // create dataspace
-            dataspace = H5Screate_simple(1, dims, NULL);
-//             printf("created dataspace\n");
             
-            dataset = H5Dcreate(group_id, "x", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, x1);
-            H5Dclose(dataset);
-            
-            dataset = H5Dcreate(group_id, "y", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, x2);
-            H5Dclose(dataset);
-            
-            dataset = H5Dcreate(group_id, "z", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, x3);
-            H5Dclose(dataset);
-            
-            dataset = H5Dcreate(group_id, "vx", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, v1);
-            H5Dclose(dataset);
-            
-            dataset = H5Dcreate(group_id, "vy", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, v2);
-            H5Dclose(dataset);
-            
-            dataset = H5Dcreate(group_id, "vz", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, v3);
-            H5Dclose(dataset);
-            
-            H5Sclose(dataspace);
-            
-            // close group
-            status = H5Gclose(group_id);
-            assert(status != -1);
-            
-//                 fprintf(fp, "%d %d %f %f %f %f %f %f\n", j, i, x1[i], x2[i], x3[i], v1[i], v2[i], v3[i]);
-//                 fprintf(fp, "%d %d %f %f %f %f %f %f\n", j, i, x[0], x[1], x[2], v[0], v[1], v[2]);
+            write_hdf5_snapshot(file_id, group_name, dims, x1, x2, x3, v1, v2, v3);
         }
 
         // update perturber
@@ -641,16 +601,18 @@ int general_interact(double *par_perturb, double *x0, double *v0, double Tenc, d
 //     // update perturber
 //     dostep1(xp, vp, apar_pot, potential, dt, direction);
     
-//     fclose(fp);
-    
+    // close hdf5 file
     status = H5Fclose(file_id);
     assert(status != -1);
-    assert(status != -1);
+    
+    if (Nout<=0) {
+        ret = remove(fname);
+    }
     
     return 0;
 }
 
-int df_interact(double *par_perturb, double mi, double f, double ai, double *x0, double *v0, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3)
+int df_interact(double *par_perturb, double mi, double f, double ai, double *x0, double *v0, double T, double dt_, double *par_pot, int potential, int potential_perturb, int Nstar, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3, char *fname, int Nout)
 {
     // Interaction of massive object, experiencing dynamical friction, and massless tracer particles
     // object is initialized at the present and rewinded back in time, accounting for dynamical friction
@@ -658,6 +620,28 @@ int df_interact(double *par_perturb, double mi, double f, double ai, double *x0,
     
     int i, j, k, Ntot, Napar_perturb, Napar_pot, potential_combined, Napar_combined;
     double x[3], v[3], xp[3], vp[3], direction, m, a, dm, da, mf, af;
+    
+    // remove an existing hdf5 file
+    int ret = 0;
+    if (access(fname, F_OK) == 0 && Nout>0) {
+        // delete file if it already exists
+        ret = remove(fname);
+        if (ret!=0) {
+            printf("Could not remove the existing hdf5 file\n");
+            return -1;
+        }
+    }
+    
+    if (Nout<=0) {
+        fname = "test.hdf5";
+    }
+    
+    // create an hdf5 file
+    hid_t file_id;
+    hsize_t dims[1] = {Nstar};
+    herr_t status;
+    file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    
     
     // setup time controls
     Ntot = T / dt_ + 1;
@@ -777,6 +761,15 @@ int df_interact(double *par_perturb, double mi, double f, double ai, double *x0,
             t2n(x, x1, x2, x3, i);
             t2n(v, v1, v2, v3, i);
         }
+        
+        // write to file
+        if (j%Nout==0 && Nout>0){
+            // create a group for each snapshot
+            char group_name[12];
+            sprintf(group_name, "/snap_%05d", j);
+            
+            write_hdf5_snapshot(file_id, group_name, dims, x1, x2, x3, v1, v2, v3);
+        }
 
         // update perturber
         dostep_df(xp, vp, apar_pot, potential, dt, direction, apar_den, m);
@@ -807,6 +800,14 @@ int df_interact(double *par_perturb, double mi, double f, double ai, double *x0,
 //     printf("%e\n", m);
     // update perturber
     dostep1_df(xp, vp, apar_pot, potential, dt, direction, apar_den, m);
+    
+    // close hdf5 file
+    status = H5Fclose(file_id);
+    assert(status != -1);
+    
+    if (Nout<=0) {
+        ret = remove(fname);
+    }
     
     return 0;
 }
@@ -2548,4 +2549,50 @@ double jacobi(double *x, double *v, double *par, int potential, double Mcl)
 	R=pow(G*Mcl/fabs(om*om+dpot),1./3.);
 	
 	return R;
+}
+
+void write_hdf5_snapshot(hid_t file_id, char *group_name, hsize_t *dims, double *x1, double *x2, double *x3, double *v1, double *v2, double *v3)
+{   //Write 3D positions and 3D velocities into a grouped dataset in an HDF5 file
+    
+    // define hdf5 objects
+    hid_t group_id, dataspace, dataset;
+    herr_t status;
+
+    // create a group for the snapshot
+    group_id = H5Gcreate(file_id, group_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    // create dataspace
+    dataspace = H5Screate_simple(1, dims, NULL);
+    
+    // store data arrays as individual datasets
+    dataset = H5Dcreate(group_id, "x", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, x1);
+    H5Dclose(dataset);
+    
+    dataset = H5Dcreate(group_id, "y", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, x2);
+    H5Dclose(dataset);
+    
+    dataset = H5Dcreate(group_id, "z", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, x3);
+    H5Dclose(dataset);
+    
+    dataset = H5Dcreate(group_id, "vx", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, v1);
+    H5Dclose(dataset);
+    
+    dataset = H5Dcreate(group_id, "vy", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, v2);
+    H5Dclose(dataset);
+    
+    dataset = H5Dcreate(group_id, "vz", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, dataspace, H5P_DEFAULT, v3);
+    H5Dclose(dataset);
+    
+    // close dataspace
+    H5Sclose(dataspace);
+    
+    // close group
+    status = H5Gclose(group_id);
+    assert(status != -1);
 }
